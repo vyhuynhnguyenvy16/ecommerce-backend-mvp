@@ -7,6 +7,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -57,6 +58,13 @@ public class OrderController {
             @PathVariable Long id) {
         Long userId = Long.parseLong(authentication.getName());
         OrderResponse response = orderService.getOrderDetail(userId, id);
+        return ResponseEntity.ok(response);
+    }
+
+    @PatchMapping("/{id}/cancel")
+    public ResponseEntity<OrderResponse> cancel(Authentication authentication, @PathVariable Long id) {
+        Long userId = Long.parseLong(authentication.getName());
+        OrderResponse response = orderService.cancelOrder(userId, id);
         return ResponseEntity.ok(response);
     }
 }

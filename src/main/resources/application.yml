@@ -1,14 +1,14 @@
 server:
-  port: 8081
+  port: ${PORT:8081}
 
 spring:
   application:
     name: demo
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/ecommerce_db
-    username: postgres
-    password: ${DB_PASSWORD:nguyenvy16}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/ecommerce_db}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:nguyenvy16}
     driver-class-name: org.postgresql.Driver
 
   jpa:
@@ -26,8 +26,9 @@ spring:
 
   data:
     redis:
-      host: localhost
-      port: 6379
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      password: ${SPRING_DATA_REDIS_PASSWORD:}
 
 jwt:
   secret: ${JWT_SECRET:change-this-to-a-very-long-random-secret-key-at-least-256-bits-for-hs256}

@@ -1,6 +1,7 @@
 package com.example.demo.controllers;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
@@ -11,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.demo.dto.response.ProductResponse;
+import com.example.demo.dto.response.ProductVariantResponse;
 import com.example.demo.service.ProductService;
 
 import lombok.RequiredArgsConstructor;
@@ -28,19 +30,27 @@ public class ProductController {
         ProductResponse response = productService.getById(id);
         return ResponseEntity.ok(response);
     }
+
+    @GetMapping("/{id}/variants")
+    public ResponseEntity<List<ProductVariantResponse>> getVariants(@PathVariable Long id) {
+        List<ProductVariantResponse> variants = productService.getVariantsByProductId(id);
+        return ResponseEntity.ok(variants);
+    }
+
     @GetMapping
     public ResponseEntity<Page<ProductResponse>> search(
             @RequestParam(required = false) Long categoryId,
             @RequestParam(required = false) BigDecimal minPrice,
             @RequestParam(required = false) BigDecimal maxPrice,
+            @RequestParam(required = false) String name,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "createdAt") String sortBy,
             @RequestParam(defaultValue = "DESC") String sortDirection
     ) {
-        Page<ProductResponse> responsePage = productService.search(
-                categoryId, minPrice, maxPrice, page, size, sortBy, sortDirection
+        Page<ProductResponse> result = productService.search(
+                categoryId, minPrice, maxPrice, name, page, size, sortBy, sortDirection
         );
-        return ResponseEntity.ok(responsePage);
+        return ResponseEntity.ok(result);
     }
 }

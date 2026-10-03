@@ -16,6 +16,7 @@ public class ProductSpecification {
             Long categoryId,
             BigDecimal minPrice,
             BigDecimal maxPrice,
+            String name,
             String status
     ) {
         return (root, query, criteriaBuilder) -> {
@@ -34,6 +35,13 @@ public class ProductSpecification {
             // TODO 3: Lọc theo mức giá tối đa
             if (maxPrice != null) {
                 predicates.add(criteriaBuilder.lessThanOrEqualTo(root.get("basePrice"), maxPrice));
+            }
+
+            if (name != null && !name.isBlank()) {
+                predicates.add(criteriaBuilder.like(
+                        criteriaBuilder.lower(root.get("name")),
+                        "%" + name.toLowerCase() + "%"
+                ));
             }
 
             // TODO 4: Lọc theo trạng thái (chặn hiển thị sản phẩm DELETED)

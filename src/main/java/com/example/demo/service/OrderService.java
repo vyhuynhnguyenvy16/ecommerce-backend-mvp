@@ -167,4 +167,31 @@ public class OrderService {
 
         return orderMapper.toResponse(order);
     }
+
+    @Transactional
+    public OrderResponse cancelOrder(Long userId, Long orderId) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+
+        if (!order.getUser().getId().equals(userId)) {
+            throw new AccessDeniedException("You do not have permission to access this order");
+        }
+
+        if (!"PENDING".equals(order.getStatus())) {
+            throw new IllegalStateException("Cannot cancel order with status: " + order.getStatus());
+        }
+
+        for (OrderItem item : order.getItems()) {
+            ProductVariant variant = item.getVariant();
+            if (variant != null) {
+                variant.setStockQuantity(variant.getStockQuantity() + item.getQuantity());
+                productVariantRepository.save(variant);
+            }
+        }
+
+        order.setStatus("CANCELLED");
+        Order savedOrder = orderRepository.save(order);
+
+        return orderMapper.toResponse(savedOrder);
+    }
 }

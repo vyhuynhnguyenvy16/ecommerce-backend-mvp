@@ -6,6 +6,7 @@ import lombok.Getter;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Getter
 @Builder
@@ -21,6 +22,8 @@ public class ProductResponse {
     private String status;
     private Long categoryId;
     private String categoryName; 
+    private String imageUrl;
+    private List<String> images;
     private LocalDateTime createdAt;
 
 }
