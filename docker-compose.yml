@@ -27,6 +27,7 @@ services:
       - "8081:8081"
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/ecommerce_db
+      SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
       SPRING_DATA_REDIS_HOST: redis
       DB_PASSWORD: ${DB_PASSWORD}
