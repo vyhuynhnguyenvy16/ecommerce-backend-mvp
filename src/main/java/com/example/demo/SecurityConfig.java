@@ -63,15 +63,11 @@ public class SecurityConfig {
         configuration.setAllowedOrigins(List.of(
                 "http://localhost:3000",
                 "https://id-preview--0333c5cf-ec88-4d1d-aaa4-be9a98ccab5e.lovable.app",
-                "https://smart-shop-ui.vy-huynhnguyenvy.workers.dev"
+                "https://smart-shop-ui.vy-huynhnguyenvy.workers.dev",
+                "https://smart-shop-ui.vy-huynhnguyenvy-42b.workers.dev"
         ));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(List.of(
-                "Authorization",
-                "Content-Type",
-                "Idempotency-Key",
-                "X-Device-Id"
-        ));
+        configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
