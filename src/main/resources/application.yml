@@ -1,14 +1,14 @@
 server:
-  port: ${PORT:8081}
+  port: ${SERVER_PORT:${PORT:8080}}
 
 spring:
   application:
     name: demo
 
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/ecommerce_db}
-    username: ${SPRING_DATASOURCE_USERNAME:postgres}
-    password: ${SPRING_DATASOURCE_PASSWORD:nguyenvy16}
+    url: jdbc:postgresql://127.0.0.1:57257/railway?options=-c%20timezone=Asia/Ho_Chi_Minh
+    username: postgres
+    password: rfCEbVFOUyZLusvgJQnLTxllawEkvrxp
     driver-class-name: org.postgresql.Driver
 
   jpa:

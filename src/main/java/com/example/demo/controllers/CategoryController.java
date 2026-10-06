@@ -22,9 +22,8 @@ public class CategoryController {
 
     @GetMapping
     public List<CategoryResponse> getAll() {
-        // TODO 29: lấy toàn bộ category (categoryRepository.findAll()),
-        // map từng cái sang CategoryResponse bằng categoryMapper, return list
-        // Gợi ý: dùng .stream().map(...).toList()
-        return null;
+        return categoryRepository.findAll().stream()
+                .map(categoryMapper::toResponse)
+                .toList();
     }
 }
