@@ -12,6 +12,7 @@ import com.example.demo.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -35,7 +36,7 @@ public class AuthService {
 
     public UserResponse register(RegisterRequest request) {
         if (userRepository.existsByEmail(request.getEmail())) {
-            throw new EmailAlreadyExistsException("Email already registered: " + request.getEmail());
+            throw new EmailAlreadyExistsException("Email đã tồn tại");
         }
 
         User user = User.builder()
@@ -46,8 +47,12 @@ public class AuthService {
                 .role("CUSTOMER")
                 .build();
 
-        User saved = userRepository.save(user);
-        return userMapper.toResponse(saved);
+        try {
+            User saved = userRepository.saveAndFlush(user);
+            return userMapper.toResponse(saved);
+        } catch (DataIntegrityViolationException ex) {
+            throw new EmailAlreadyExistsException("Email đã tồn tại");
+        }
     }
 
     public AuthResponse login(LoginRequest request, String deviceId) {
