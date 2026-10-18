@@ -22,8 +22,6 @@ import com.example.demo.service.OrderService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
-import java.util.UUID;
-
 @RestController
 @RequestMapping("/api/orders")
 @RequiredArgsConstructor
@@ -34,11 +32,10 @@ public class OrderController {
     @PostMapping
     public ResponseEntity<OrderResponse> checkout(
             Authentication authentication,
-            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
             @Valid @RequestBody CreateOrderRequest request) {
         Long userId = Long.parseLong(authentication.getName());
-        String effectiveIdempotencyKey = idempotencyKey != null ? idempotencyKey : UUID.randomUUID().toString();
-        OrderResponse response = orderService.checkout(userId, request, effectiveIdempotencyKey);
+        OrderResponse response = orderService.checkout(userId, request, idempotencyKey);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 

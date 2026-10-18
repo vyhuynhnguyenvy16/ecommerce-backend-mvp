@@ -28,9 +28,8 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(
             @Valid @RequestBody LoginRequest request,
-            @RequestHeader(value = "X-Device-Id", required = false) String deviceId) {
-        String resolvedDeviceId = (deviceId != null) ? deviceId : "default";
-        AuthResponse response = authService.login(request, resolvedDeviceId);
+            @RequestHeader("X-Device-Id") String deviceId) {
+        AuthResponse response = authService.login(request, deviceId);
         return ResponseEntity.ok(response);
     }
     // (Đảm bảo em đã import RefreshTokenRequest và AuthResponse ở đầu file)

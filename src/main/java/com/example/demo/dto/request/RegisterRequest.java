@@ -13,6 +13,7 @@ public class RegisterRequest {
 
     @NotBlank(message = "Email is required")
     @Email(message = "Email format is invalid")
+    @Size(max = 255, message = "Email must not exceed 255 characters")
     private String email;
 
     @NotBlank(message = "Password is required")
@@ -28,7 +29,7 @@ public class RegisterRequest {
     private String fullName;
 
     @Pattern(
-        regexp= "^\\+?[0-9]{9,15}$",
+        regexp= "^(\\+?[0-9]{9,15})?$",
         message = "Phone number is not valid"
     )
     private String phone;
