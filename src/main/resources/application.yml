@@ -26,9 +26,10 @@ spring:
 
   data:
     redis:
-      host: ${SPRING_DATA_REDIS_HOST:localhost}
-      port: ${SPRING_DATA_REDIS_PORT:6379}
-      password: ${SPRING_DATA_REDIS_PASSWORD:}
+      host: redis.railway.internal
+      port: 6379
+      username: default
+      password: nMpCamymKJWEvjzofgYhkiSmxzBPkBOF
 
 jwt:
   secret: ${JWT_SECRET:change-this-to-a-very-long-random-secret-key-at-least-256-bits-for-hs256}
