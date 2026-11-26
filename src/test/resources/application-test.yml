@@ -1,0 +1,6 @@
+spring:
+  jpa:
+    show-sql: false
+
+jwt:
+  secret: test-secret-key-that-is-long-enough-for-hs256-signing-0123456789
