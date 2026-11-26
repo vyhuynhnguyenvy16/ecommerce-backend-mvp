@@ -1,6 +1,7 @@
 package com.example.demo.payment;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.matchesPattern;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -72,7 +73,7 @@ class MomoCheckoutFlowTest extends AbstractIntegrationTest {
 
         assertThat(secondUrl).isEqualTo(firstUrl);
         verify(momoClient, times(1)).createPayment(anyString(), anyString(), eq(150000L), anyString(),
-                eq("https://shop.example.com/checkout/momo-return?orderId=" + orderId));
+                eq("https://shop.example.com/checkout/momo-return?order=" + orderId));
 
         mvc.perform(get("/api/orders/" + orderId + "/payment").header("Authorization", buyer.bearer()))
                 .andExpect(status().isOk())
@@ -80,7 +81,8 @@ class MomoCheckoutFlowTest extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.method").value("MOMO"))
                 .andExpect(jsonPath("$.lastAttemptStatus").value("PENDING"))
                 .andExpect(jsonPath("$.canRetry").value(true))
-                .andExpect(jsonPath("$.expiresAt").exists());
+                // Must carry an offset, or a browser in another time zone shows the wrong countdown.
+                .andExpect(jsonPath("$.expiresAt").value(matchesPattern(".*([+-]\\d{2}:\\d{2}|Z)$")));
     }
 
     @Test
@@ -141,6 +143,21 @@ class MomoCheckoutFlowTest extends AbstractIntegrationTest {
                 .isEqualTo(PaymentStatus.CANCELLED);
         mvc.perform(post("/api/orders/" + orderId + "/payments/momo").header("Authorization", buyer.bearer()))
                 .andExpect(status().isConflict());
+    }
+
+    @Test
+    void storefrontOriginIsAllowedByCorsAndOthersAreNot() throws Exception {
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .options("/api/orders")
+                        .header("Origin", "https://smart-shop-ui.vy-huynhnguyenvy-42b.workers.dev")
+                        .header("Access-Control-Request-Method", "POST"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header()
+                        .string("Access-Control-Allow-Origin", "https://smart-shop-ui.vy-huynhnguyenvy-42b.workers.dev"));
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .options("/api/orders")
+                        .header("Origin", "https://evil.example.com")
+                        .header("Access-Control-Request-Method", "POST"))
+                .andExpect(status().isForbidden());
     }
 
     private Long checkout(TestData.Customer buyer, String method) throws Exception {
