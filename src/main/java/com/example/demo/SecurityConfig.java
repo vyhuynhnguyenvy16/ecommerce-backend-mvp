@@ -40,6 +40,8 @@ public class SecurityConfig {
                                 "/api/auth/**",
                                 "/api/categories/**",
                                 "/api/products/**",
+                                // MoMo server-to-server notification: authenticated by its HMAC signature.
+                                "/api/payments/momo/ipn",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
                                 "/v3/api-docs/**",
