@@ -1,5 +1,7 @@
 package com.example.demo.dto.request;
 
+import com.example.demo.payment.PaymentMethod;
+
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
@@ -17,4 +19,7 @@ public class CreateOrderRequest {
 
     @NotBlank(message = "Shipping city is required")
     private String shippingCity;
+
+    /** Optional; defaults to COD so existing clients keep working. */
+    private PaymentMethod paymentMethod;
 }

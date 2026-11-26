@@ -37,6 +37,8 @@ public class OrderMapper {
         response.setId(order.getId());
         response.setStatus(order.getStatus());
         response.setTotalAmount(order.getTotalAmount());
+        response.setPaymentMethod(order.getPaymentMethod());
+        response.setPaymentStatus(order.getPaymentStatus());
         response.setShippingRecipientName(order.getShippingRecipientName());
         response.setShippingPhone(order.getShippingPhone());
         response.setShippingAddressLine(order.getShippingAddressLine());
