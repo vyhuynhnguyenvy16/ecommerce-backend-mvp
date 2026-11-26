@@ -61,6 +61,8 @@ momo:
 vestra:
   payments:
     momo-expiry: ${VESTRA_MOMO_EXPIRY:15m}
+    expiry-check-interval: 1m
+    reconciliation-interval: 15m
   kafka:
     # Off on Railway by default: the outbox is still written, nothing is published.
     enabled: ${VESTRA_KAFKA_ENABLED:false}
