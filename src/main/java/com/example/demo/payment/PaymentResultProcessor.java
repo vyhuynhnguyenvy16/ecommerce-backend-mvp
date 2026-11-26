@@ -13,6 +13,7 @@ import com.example.demo.entity.Order;
 import com.example.demo.ledger.LedgerAccounts;
 import com.example.demo.ledger.LedgerService;
 import com.example.demo.ledger.LedgerService.Line;
+import com.example.demo.outbox.OutboxService;
 import com.example.demo.payment.momo.MomoResultCodes;
 
 import lombok.RequiredArgsConstructor;
@@ -34,6 +35,7 @@ public class PaymentResultProcessor {
     private final PaymentRepository paymentRepository;
     private final PaymentEventRepository eventRepository;
     private final LedgerService ledgerService;
+    private final OutboxService outboxService;
     private final Clock clock;
 
     @Transactional
@@ -105,6 +107,23 @@ public class PaymentResultProcessor {
         return record(result, payment, PaymentEventOutcome.ATTEMPT_FAILED);
     }
 
+    /** Integration events go through the outbox, in this same transaction. */
+    private void publish(PaymentResult result, Payment payment, PaymentEventOutcome outcome) {
+        if (payment == null) {
+            return;
+        }
+        String orderId = String.valueOf(payment.getOrder().getId());
+        if (outcome == PaymentEventOutcome.PAID) {
+            outboxService.enqueue(PaymentEvents.AGGREGATE, orderId, PaymentEvents.PAYMENT_SUCCEEDED,
+                    new PaymentEvents.PaymentSucceeded(payment.getOrder().getId(), payment.getId(), result.amount(),
+                            result.transId(), payment.getPaidAt()));
+        } else if (outcome.isAnomaly()) {
+            outboxService.enqueue(PaymentEvents.AGGREGATE, orderId, PaymentEvents.PAYMENT_ANOMALY,
+                    new PaymentEvents.PaymentAnomalyDetected(payment.getOrder().getId(), payment.getId(),
+                            outcome.name(), result.amount(), result.transId(), result.providerOrderId()));
+        }
+    }
+
     /** Money really arrived but the sale is not valid: owe it back to the customer until refunded. */
     private void postRefundPayable(PaymentResult result, Payment payment, String reason) {
         long amount = result.amount();
@@ -132,6 +151,7 @@ public class PaymentResultProcessor {
     }
 
     private PaymentEventOutcome record(PaymentResult result, Payment payment, PaymentEventOutcome outcome) {
+        publish(result, payment, outcome);
         eventRepository.save(PaymentEvent.builder()
                 .payment(payment)
                 .source(result.source())

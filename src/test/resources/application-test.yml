@@ -14,3 +14,8 @@ momo:
   secret-key: K951B6PE1waDMi640xX08PD3vg6EkVlz
   ipn-url: https://api.example.com/api/payments/momo/ipn
   redirect-url: https://shop.example.com/checkout/momo-return
+
+# Jobs are triggered explicitly by tests.
+vestra:
+  scheduling:
+    enabled: false

@@ -24,6 +24,19 @@ spring:
     enabled: true
     baseline-on-migrate: true
 
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      acks: all
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      properties:
+        enable.idempotence: true
+    consumer:
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+
   data:
     redis:
       host: ${SPRING_DATA_REDIS_HOST:localhost}
@@ -48,3 +61,9 @@ momo:
 vestra:
   payments:
     momo-expiry: ${VESTRA_MOMO_EXPIRY:15m}
+  kafka:
+    # Off on Railway by default: the outbox is still written, nothing is published.
+    enabled: ${VESTRA_KAFKA_ENABLED:false}
+    topic: vestra.payments
+    relay-interval: 1s
+    relay-batch-size: 50

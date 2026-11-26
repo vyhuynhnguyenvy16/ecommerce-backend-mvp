@@ -30,6 +30,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
+import com.example.demo.outbox.OutboxEvent;
+import com.example.demo.outbox.OutboxEventRepository;
 import com.example.demo.payment.momo.MomoClient;
 import com.example.demo.payment.momo.MomoIpnRequest;
 import com.example.demo.payment.momo.MomoSigner;
@@ -64,6 +66,8 @@ class MomoIpnTest extends AbstractIntegrationTest {
     PaymentResultProcessor processor;
     @Autowired
     JdbcTemplate jdbc;
+    @Autowired
+    OutboxEventRepository outbox;
 
     @MockitoBean
     MomoClient momoClient;
@@ -96,6 +100,10 @@ class MomoIpnTest extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.canRetry").value(false));
         assertThat(outcomes(p)).containsExactly(PaymentEventOutcome.PAID);
         assertThat(ledgerLines(3000000001L)).containsExactly("1130 DEBIT 120000", "5110 CREDIT 120000");
+        // Kafka is disabled in this context: the event is still recorded in the outbox, waiting for a relay.
+        assertThat(outbox.findByAggregateTypeAndAggregateIdOrderByIdAsc("Order", String.valueOf(p.orderId)))
+                .extracting(OutboxEvent::getEventType, e -> e.getPublishedAt() == null)
+                .containsExactly(org.assertj.core.groups.Tuple.tuple("PaymentSucceeded", true));
     }
 
     @Test
@@ -189,6 +197,8 @@ class MomoIpnTest extends AbstractIntegrationTest {
         assertThat(paymentRepository.findByOrderId(p.orderId).orElseThrow().getStatus())
                 .isEqualTo(PaymentStatus.CANCELLED);
         assertThat(outcomes(p)).containsExactly(PaymentEventOutcome.PAID_AFTER_CLOSE);
+        assertThat(outbox.findByAggregateTypeAndAggregateIdOrderByIdAsc("Order", String.valueOf(p.orderId)))
+                .extracting(OutboxEvent::getEventType).containsExactly("PaymentAnomalyDetected");
         // The money is real, so it is booked, but as owed back to the customer rather than as revenue.
         assertThat(ledgerLines(3000000006L)).containsExactly("1130 DEBIT 120000", "3388 CREDIT 120000");
     }
