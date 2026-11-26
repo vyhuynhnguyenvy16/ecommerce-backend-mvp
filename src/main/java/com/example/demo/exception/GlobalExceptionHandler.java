@@ -13,6 +13,9 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import com.example.demo.payment.PaymentNotAllowedException;
 import com.example.demo.payment.momo.MomoGatewayException;
 
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
@@ -30,6 +33,8 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(MomoGatewayException.class)
     public ResponseEntity<Map<String, Object>> handleMomoGateway(MomoGatewayException ex) {
+        // The customer gets a generic message; operators need the real cause (resultCode, network error…).
+        log.warn("MoMo gateway error (resultCode {}): {}", ex.getResultCode(), ex.getMessage(), ex.getCause());
         return error(HttpStatus.BAD_GATEWAY, "Không kết nối được MoMo, vui lòng thử lại sau");
     }
 

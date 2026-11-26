@@ -3,6 +3,7 @@ package com.example.demo.payment;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -74,13 +75,15 @@ public class PaymentService {
 
         Optional<PaymentAttempt> latest = attemptRepository.findFirstByPaymentIdOrderByCreatedAtDescIdDesc(payment.getId());
         if (latest.isPresent() && latest.get().getStatus() == AttemptStatus.PENDING && latest.get().getPayUrl() != null) {
-            return new PaymentLinkResponse(orderId, latest.get().getPayUrl(), payment.getExpiresAt());
+            return new PaymentLinkResponse(orderId, latest.get().getPayUrl(), withOffset(payment.getExpiresAt()));
         }
 
         long amount = MomoAmount.toVnd(payment.getAmount());
         String providerOrderId = "VESTRA-" + orderId + "-" + Instant.now(clock).toEpochMilli();
         String requestId = UUID.randomUUID().toString();
-        String redirectUrl = momoProperties.redirectUrl() + "?orderId=" + orderId;
+        // MoMo appends its own query parameters to redirectUrl, including "orderId" (its id: VESTRA-…), so VESTRA's
+        // order id travels under a different name.
+        String redirectUrl = momoProperties.redirectUrl() + "?order=" + orderId;
 
         MomoClient.CreateResponse response = momoClient.createPayment(providerOrderId, requestId, amount,
                 "VESTRA order #" + orderId, redirectUrl);
@@ -94,7 +97,7 @@ public class PaymentService {
                 .payUrl(response.payUrl())
                 .build());
 
-        return new PaymentLinkResponse(orderId, response.payUrl(), payment.getExpiresAt());
+        return new PaymentLinkResponse(orderId, response.payUrl(), withOffset(payment.getExpiresAt()));
     }
 
     @Transactional(readOnly = true)
@@ -111,7 +114,7 @@ public class PaymentService {
         boolean canRetry = p.getStatus() == PaymentStatus.PENDING && "PENDING".equals(order.getStatus())
                 && now().isBefore(p.getExpiresAt());
         return new PaymentStatusResponse(orderId, order.getStatus(), p.getMethod(), p.getStatus(), p.getAmount(),
-                p.getExpiresAt(), p.getPaidAt(),
+                withOffset(p.getExpiresAt()), withOffset(p.getPaidAt()),
                 latest.map(PaymentAttempt::getStatus).orElse(null),
                 latest.map(PaymentAttempt::getResultCode).orElse(null),
                 canRetry);
@@ -124,6 +127,14 @@ public class PaymentService {
             throw new AccessDeniedException("You do not have permission to access this order");
         }
         return order;
+    }
+
+    /**
+     * Timestamps are stored as server-local LocalDateTime; the API adds the server's offset so a browser in another
+     * time zone (Railway runs in UTC, customers are in UTC+7) computes the right countdown.
+     */
+    private OffsetDateTime withOffset(LocalDateTime value) {
+        return value == null ? null : value.atZone(clock.getZone()).toOffsetDateTime();
     }
 
     private LocalDateTime now() {

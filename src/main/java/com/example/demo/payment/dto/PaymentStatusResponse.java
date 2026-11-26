@@ -1,7 +1,7 @@
 package com.example.demo.payment.dto;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 
 import com.example.demo.payment.AttemptStatus;
 import com.example.demo.payment.PaymentMethod;
@@ -16,8 +16,8 @@ public record PaymentStatusResponse(
         PaymentMethod method,
         PaymentStatus status,
         BigDecimal amount,
-        LocalDateTime expiresAt,
-        LocalDateTime paidAt,
+        OffsetDateTime expiresAt,
+        OffsetDateTime paidAt,
         AttemptStatus lastAttemptStatus,
         Integer lastResultCode,
         boolean canRetry) {
