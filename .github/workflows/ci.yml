@@ -21,6 +21,29 @@ jobs:
           java-version: "21"
           cache: maven
 
+      # setup-java caches ~/.m2/repository but not the Maven distribution the wrapper downloads,
+      # so without this the wrapper re-fetches it on every run.
+      - name: Cache the Maven distribution downloaded by the wrapper
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/wrapper
+          key: maven-wrapper-${{ hashFiles('.mvn/wrapper/maven-wrapper.properties') }}
+
+      # The wrapper fetches Maven with a plain wget that does not retry, so a single network
+      # hiccup fails the whole build before any test runs (this happened on PR #6). Retrying
+      # the download alone keeps a flaky network from being reported as a test failure.
+      - name: Download Maven (retry on network failure)
+        run: |
+          for attempt in 1 2 3; do
+            if ./mvnw -B -v; then
+              exit 0
+            fi
+            echo "Maven download failed (attempt $attempt/3); retrying in $((attempt * 10))s"
+            sleep $((attempt * 10))
+          done
+          echo "Maven could not be downloaded after 3 attempts"
+          exit 1
+
       # Unit + integration tests. Testcontainers uses the runner's Docker for PostgreSQL, Redis and Kafka.
       - name: Build and test
         run: ./mvnw -B verify
