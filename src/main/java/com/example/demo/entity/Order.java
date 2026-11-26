@@ -46,6 +46,16 @@ public class Order {
     @Column(nullable = false, length = 20)
     private String status = "PENDING";
 
+    /** {@code COD} or {@code MOMO} (see {@link com.example.demo.payment.PaymentMethod}). */
+    @Builder.Default
+    @Column(name = "payment_method", nullable = false, length = 20)
+    private String paymentMethod = "COD";
+
+    /** Mirrors {@code payments.status}; {@code NOT_REQUIRED} for COD orders. */
+    @Builder.Default
+    @Column(name = "payment_status", nullable = false, length = 20)
+    private String paymentStatus = "NOT_REQUIRED";
+
     @Column(name = "total_amount", nullable = false, precision = 12, scale = 2)
     private BigDecimal totalAmount;
 
