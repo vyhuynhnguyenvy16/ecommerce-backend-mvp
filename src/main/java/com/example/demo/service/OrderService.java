@@ -28,6 +28,7 @@ import com.example.demo.exception.EmptyCartException;
 import com.example.demo.exception.InsufficientStockException;
 import com.example.demo.exception.ResourceNotFoundException;
 import com.example.demo.mapper.OrderMapper;
+import com.example.demo.payment.Payment;
 import com.example.demo.payment.PaymentMethod;
 import com.example.demo.payment.PaymentRepository;
 import com.example.demo.payment.PaymentService;
@@ -194,6 +195,14 @@ public class OrderService {
             throw new AccessDeniedException("You do not have permission to access this order");
         }
 
+        // Lock the payment first: an IPN marking the order PAID may be committing right now.
+        Payment momoPayment = PaymentMethod.MOMO.name().equals(order.getPaymentMethod())
+                ? paymentRepository.findByOrderIdForUpdate(order.getId()).orElse(null)
+                : null;
+        if (momoPayment != null && momoPayment.getStatus() == PaymentStatus.PAID) {
+            throw new IllegalStateException("Đơn hàng đã được thanh toán, không thể tự huỷ");
+        }
+
         if (!"PENDING".equals(order.getStatus())) {
             throw new IllegalStateException("Cannot cancel order with status: " + order.getStatus());
         }
@@ -207,13 +216,9 @@ public class OrderService {
         }
 
         order.setStatus("CANCELLED");
-        if (PaymentMethod.MOMO.name().equals(order.getPaymentMethod())) {
-            paymentRepository.findByOrderIdForUpdate(order.getId()).ifPresent(payment -> {
-                if (payment.getStatus() == PaymentStatus.PENDING) {
-                    payment.setStatus(PaymentStatus.CANCELLED);
-                    order.setPaymentStatus(PaymentStatus.CANCELLED.name());
-                }
-            });
+        if (momoPayment != null && momoPayment.getStatus() == PaymentStatus.PENDING) {
+            momoPayment.setStatus(PaymentStatus.CANCELLED);
+            order.setPaymentStatus(PaymentStatus.CANCELLED.name());
         }
         Order savedOrder = orderRepository.save(order);
 
