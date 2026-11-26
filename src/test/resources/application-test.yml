@@ -4,3 +4,13 @@ spring:
 
 jwt:
   secret: test-secret-key-that-is-long-enough-for-hs256-signing-0123456789
+
+# MoMo settings for tests: the keys are MoMo's public sandbox sample keys (github.com/momo-wallet/payment).
+# Tests never call the real gateway: MomoClient is mocked or bound to a mock server.
+momo:
+  endpoint: https://momo.test.invalid
+  partner-code: MOMO
+  access-key: F8BBA842ECF85
+  secret-key: K951B6PE1waDMi640xX08PD3vg6EkVlz
+  ipn-url: https://api.example.com/api/payments/momo/ipn
+  redirect-url: https://shop.example.com/checkout/momo-return

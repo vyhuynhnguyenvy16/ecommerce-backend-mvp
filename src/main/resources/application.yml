@@ -34,3 +34,17 @@ jwt:
   secret: ${JWT_SECRET:change-this-to-a-very-long-random-secret-key-at-least-256-bits-for-hs256}
   access-token-expiration: 900000 # 15 phút (ms)
   refresh-token-expiration: 604800000 # 7 ngày (ms)
+
+momo:
+  # Sandbox by default; production keys only ever come from environment variables.
+  endpoint: ${MOMO_ENDPOINT:https://test-payment.momo.vn}
+  partner-code: ${MOMO_PARTNER_CODE:}
+  access-key: ${MOMO_ACCESS_KEY:}
+  secret-key: ${MOMO_SECRET_KEY:}
+  ipn-url: ${MOMO_IPN_URL:}
+  redirect-url: ${MOMO_REDIRECT_URL:}
+  lang: vi
+
+vestra:
+  payments:
+    momo-expiry: ${VESTRA_MOMO_EXPIRY:15m}

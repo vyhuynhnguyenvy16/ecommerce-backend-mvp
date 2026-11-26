@@ -28,6 +28,10 @@ import com.example.demo.exception.EmptyCartException;
 import com.example.demo.exception.InsufficientStockException;
 import com.example.demo.exception.ResourceNotFoundException;
 import com.example.demo.mapper.OrderMapper;
+import com.example.demo.payment.PaymentMethod;
+import com.example.demo.payment.PaymentRepository;
+import com.example.demo.payment.PaymentService;
+import com.example.demo.payment.PaymentStatus;
 import com.example.demo.repository.CartRepository;
 import com.example.demo.repository.OrderRepository;
 import com.example.demo.repository.ProductVariantRepository;
@@ -52,6 +56,8 @@ public class OrderService {
     private final ProductVariantRepository productVariantRepository;
     private final OrderMapper orderMapper;
     private final RedisTemplate<String, String> redisTemplate;
+    private final PaymentService paymentService;
+    private final PaymentRepository paymentRepository;
 
     @Transactional
     public OrderResponse checkout(Long userId, CreateOrderRequest request, String idempotencyKey) {
@@ -106,9 +112,17 @@ public class OrderService {
             orderItems.add(orderItem);
         }
 
+        PaymentMethod paymentMethod = request.getPaymentMethod() != null
+                ? request.getPaymentMethod()
+                : PaymentMethod.COD;
+
         Order order = Order.builder()
                 .user(user)
                 .status("PENDING")
+                .paymentMethod(paymentMethod.name())
+                .paymentStatus(paymentMethod == PaymentMethod.MOMO
+                        ? PaymentStatus.PENDING.name()
+                        : PaymentStatus.NOT_REQUIRED.name())
                 .totalAmount(totalAmount)
                 .shippingRecipientName(request.getShippingRecipientName())
                 .shippingPhone(request.getShippingPhone())
@@ -120,6 +134,9 @@ public class OrderService {
         order.setItems(orderItems);
 
         Order savedOrder = orderRepository.save(order);
+        if (paymentMethod == PaymentMethod.MOMO) {
+            paymentService.openMomoPayment(savedOrder);
+        }
         cart.getItems().clear();
         cartRepository.save(cart);
 
@@ -190,6 +207,14 @@ public class OrderService {
         }
 
         order.setStatus("CANCELLED");
+        if (PaymentMethod.MOMO.name().equals(order.getPaymentMethod())) {
+            paymentRepository.findByOrderIdForUpdate(order.getId()).ifPresent(payment -> {
+                if (payment.getStatus() == PaymentStatus.PENDING) {
+                    payment.setStatus(PaymentStatus.CANCELLED);
+                    order.setPaymentStatus(PaymentStatus.CANCELLED.name());
+                }
+            });
+        }
         Order savedOrder = orderRepository.save(order);
 
         return orderMapper.toResponse(savedOrder);
