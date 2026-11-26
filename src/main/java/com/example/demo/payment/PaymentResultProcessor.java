@@ -1,0 +1,120 @@
+package com.example.demo.payment;
+
+import java.time.Clock;
+import java.time.LocalDateTime;
+import java.util.Objects;
+import java.util.Optional;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.example.demo.entity.Order;
+import com.example.demo.payment.momo.MomoResultCodes;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+
+/**
+ * Applies a verified MoMo result to VESTRA's state. Safe to call any number of times with the same result:
+ * the payment row is locked, final states never move backwards, and a PAID payment remembers its transId.
+ * IPN and the status-query jobs both go through here, so every channel follows the same rules.
+ */
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class PaymentResultProcessor {
+
+    private final PaymentAttemptRepository attemptRepository;
+    private final PaymentRepository paymentRepository;
+    private final PaymentEventRepository eventRepository;
+    private final Clock clock;
+
+    @Transactional
+    public PaymentEventOutcome apply(PaymentResult result) {
+        Optional<PaymentAttempt> found = attemptRepository.findByProviderOrderId(result.providerOrderId());
+        if (found.isEmpty()) {
+            log.warn("MoMo result for unknown orderId {}", result.providerOrderId());
+            return record(result, null, PaymentEventOutcome.UNKNOWN_ORDER);
+        }
+        PaymentAttempt attempt = found.get();
+        Payment payment = paymentRepository.findByIdForUpdate(attempt.getPayment().getId()).orElseThrow();
+
+        if (!Objects.equals(result.amount(), attempt.getAmount())) {
+            log.error("MoMo amount mismatch for {}: expected {}, got {}", result.providerOrderId(),
+                    attempt.getAmount(), result.amount());
+            return record(result, payment, PaymentEventOutcome.AMOUNT_MISMATCH);
+        }
+
+        int code = result.resultCode();
+        if (MomoResultCodes.isSuccess(code)) {
+            return onSuccess(result, attempt, payment);
+        }
+        if (MomoResultCodes.isPending(code)) {
+            return record(result, payment, PaymentEventOutcome.STILL_PENDING);
+        }
+        return onFailure(result, attempt, payment);
+    }
+
+    private PaymentEventOutcome onSuccess(PaymentResult result, PaymentAttempt attempt, Payment payment) {
+        attempt.setStatus(AttemptStatus.SUCCEEDED);
+        attempt.setResultCode(result.resultCode());
+        attempt.setTransId(result.transId());
+
+        switch (payment.getStatus()) {
+            case PAID -> {
+                if (Objects.equals(payment.getProviderTransId(), result.transId())) {
+                    return record(result, payment, PaymentEventOutcome.DUPLICATE_IGNORED);
+                }
+                log.error("Second MoMo payment {} for already-paid payment {}", result.transId(), payment.getId());
+                return record(result, payment, PaymentEventOutcome.DUPLICATE_PAYMENT);
+            }
+            case EXPIRED, CANCELLED -> {
+                log.error("MoMo payment {} arrived after payment {} was {}", result.transId(), payment.getId(),
+                        payment.getStatus());
+                return record(result, payment, PaymentEventOutcome.PAID_AFTER_CLOSE);
+            }
+            default -> {
+                markPaid(payment, result.transId());
+                return record(result, payment, PaymentEventOutcome.PAID);
+            }
+        }
+    }
+
+    private PaymentEventOutcome onFailure(PaymentResult result, PaymentAttempt attempt, Payment payment) {
+        if (attempt.getStatus() == AttemptStatus.PENDING) {
+            attempt.setStatus(AttemptStatus.FAILED);
+            attempt.setResultCode(result.resultCode());
+        }
+        if (payment.getStatus().isFinal()) {
+            return record(result, payment, PaymentEventOutcome.IGNORED_FINAL);
+        }
+        return record(result, payment, PaymentEventOutcome.ATTEMPT_FAILED);
+    }
+
+    private void markPaid(Payment payment, Long transId) {
+        payment.setStatus(PaymentStatus.PAID);
+        payment.setProviderTransId(transId);
+        payment.setPaidAt(LocalDateTime.now(clock));
+
+        Order order = payment.getOrder();
+        order.setPaymentStatus(PaymentStatus.PAID.name());
+        if ("PENDING".equals(order.getStatus())) {
+            order.setStatus("CONFIRMED");
+        }
+    }
+
+    private PaymentEventOutcome record(PaymentResult result, Payment payment, PaymentEventOutcome outcome) {
+        eventRepository.save(PaymentEvent.builder()
+                .payment(payment)
+                .source(result.source())
+                .providerOrderId(result.providerOrderId())
+                .transId(result.transId())
+                .amount(result.amount())
+                .resultCode(result.resultCode())
+                .signatureValid(true)
+                .outcome(outcome)
+                .payload(result.payload())
+                .build());
+        return outcome;
+    }
+}
