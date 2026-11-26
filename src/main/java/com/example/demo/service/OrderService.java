@@ -13,6 +13,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.example.demo.dto.request.CreateOrderRequest;
@@ -207,13 +208,7 @@ public class OrderService {
             throw new IllegalStateException("Cannot cancel order with status: " + order.getStatus());
         }
 
-        for (OrderItem item : order.getItems()) {
-            ProductVariant variant = item.getVariant();
-            if (variant != null) {
-                variant.setStockQuantity(variant.getStockQuantity() + item.getQuantity());
-                productVariantRepository.save(variant);
-            }
-        }
+        restoreStock(order);
 
         order.setStatus("CANCELLED");
         if (momoPayment != null && momoPayment.getStatus() == PaymentStatus.PENDING) {
@@ -223,5 +218,17 @@ public class OrderService {
         Order savedOrder = orderRepository.save(order);
 
         return orderMapper.toResponse(savedOrder);
+    }
+
+    /** Puts the order's reserved units back in stock (cancellation or payment expiry). */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void restoreStock(Order order) {
+        for (OrderItem item : order.getItems()) {
+            ProductVariant variant = item.getVariant();
+            if (variant != null) {
+                variant.setStockQuantity(variant.getStockQuantity() + item.getQuantity());
+                productVariantRepository.save(variant);
+            }
+        }
     }
 }
