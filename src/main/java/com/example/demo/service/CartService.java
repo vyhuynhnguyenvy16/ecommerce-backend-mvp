@@ -49,6 +49,9 @@ public class CartService {
                 });
     }
 
+    // open-in-view is off, so the lazy cart items must be read inside a transaction. Not read-only: the cart is
+    // created on first access.
+    @Transactional
     public CartResponse getCart(Long userId) {
         // TODO 10 & 11: Lấy giỏ hàng, nếu chưa có thì tự động tạo mới (Lazy-create)
         Cart cart = getOrCreateCart(userId);

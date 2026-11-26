@@ -42,7 +42,9 @@ public class SecurityConfig {
                                 "/api/products/**",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
-                                "/v3/api-docs/**"
+                                "/v3/api-docs/**",
+                                // Let Spring Boot render real error statuses (500, 404) instead of masking them as 403.
+                                "/error"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )
