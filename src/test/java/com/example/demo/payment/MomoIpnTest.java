@@ -24,11 +24,14 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
+import com.example.demo.outbox.OutboxEvent;
+import com.example.demo.outbox.OutboxEventRepository;
 import com.example.demo.payment.momo.MomoClient;
 import com.example.demo.payment.momo.MomoIpnRequest;
 import com.example.demo.payment.momo.MomoSigner;
@@ -61,6 +64,10 @@ class MomoIpnTest extends AbstractIntegrationTest {
     OrderRepository orderRepository;
     @Autowired
     PaymentResultProcessor processor;
+    @Autowired
+    JdbcTemplate jdbc;
+    @Autowired
+    OutboxEventRepository outbox;
 
     @MockitoBean
     MomoClient momoClient;
@@ -92,6 +99,11 @@ class MomoIpnTest extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.orderStatus").value("CONFIRMED"))
                 .andExpect(jsonPath("$.canRetry").value(false));
         assertThat(outcomes(p)).containsExactly(PaymentEventOutcome.PAID);
+        assertThat(ledgerLines(3000000001L)).containsExactly("1130 DEBIT 120000", "5110 CREDIT 120000");
+        // Kafka is disabled in this context: the event is still recorded in the outbox, waiting for a relay.
+        assertThat(outbox.findByAggregateTypeAndAggregateIdOrderByIdAsc("Order", String.valueOf(p.orderId)))
+                .extracting(OutboxEvent::getEventType, e -> e.getPublishedAt() == null)
+                .containsExactly(org.assertj.core.groups.Tuple.tuple("PaymentSucceeded", true));
     }
 
     @Test
@@ -103,6 +115,7 @@ class MomoIpnTest extends AbstractIntegrationTest {
         sendIpn(ipn).andExpect(status().isNoContent());
 
         assertThat(outcomes(p)).containsExactly(PaymentEventOutcome.PAID, PaymentEventOutcome.DUPLICATE_IGNORED);
+        assertThat(ledgerLines(3000000002L)).hasSize(2);
     }
 
     @Test
@@ -127,6 +140,7 @@ class MomoIpnTest extends AbstractIntegrationTest {
             pool.shutdown();
         }
         assertThat(paymentRepository.findByOrderId(p.orderId).orElseThrow().getStatus()).isEqualTo(PaymentStatus.PAID);
+        assertThat(ledgerLines(3000000003L)).containsExactly("1130 DEBIT 120000", "5110 CREDIT 120000");
     }
 
     @Test
@@ -151,6 +165,7 @@ class MomoIpnTest extends AbstractIntegrationTest {
         assertThat(paymentRepository.findByOrderId(p.orderId).orElseThrow().getStatus())
                 .isEqualTo(PaymentStatus.PENDING);
         assertThat(outcomes(p)).containsExactly(PaymentEventOutcome.AMOUNT_MISMATCH);
+        assertThat(ledgerLines(3000000005L)).isEmpty();
     }
 
     @Test
@@ -182,6 +197,21 @@ class MomoIpnTest extends AbstractIntegrationTest {
         assertThat(paymentRepository.findByOrderId(p.orderId).orElseThrow().getStatus())
                 .isEqualTo(PaymentStatus.CANCELLED);
         assertThat(outcomes(p)).containsExactly(PaymentEventOutcome.PAID_AFTER_CLOSE);
+        assertThat(outbox.findByAggregateTypeAndAggregateIdOrderByIdAsc("Order", String.valueOf(p.orderId)))
+                .extracting(OutboxEvent::getEventType).containsExactly("PaymentAnomalyDetected");
+        // The money is real, so it is booked, but as owed back to the customer rather than as revenue.
+        assertThat(ledgerLines(3000000006L)).containsExactly("1130 DEBIT 120000", "3388 CREDIT 120000");
+    }
+
+    @Test
+    void aSecondDifferentPaymentForAPaidOrderIsBookedAsRefundPayable() throws Exception {
+        Pending p = pendingMomoOrder();
+        sendIpn(signed(p, 120000L, 0, 3000000008L)).andExpect(status().isNoContent());
+
+        sendIpn(signed(p, 120000L, 0, 3000000009L)).andExpect(status().isNoContent());
+
+        assertThat(outcomes(p)).containsExactly(PaymentEventOutcome.PAID, PaymentEventOutcome.DUPLICATE_PAYMENT);
+        assertThat(ledgerLines(3000000009L)).containsExactly("1130 DEBIT 120000", "3388 CREDIT 120000");
     }
 
     @Test
@@ -243,6 +273,15 @@ class MomoIpnTest extends AbstractIntegrationTest {
 
     private org.springframework.test.web.servlet.ResultActions sendIpn(MomoIpnRequest ipn) throws Exception {
         return mvc.perform(post(IPN).contentType(MediaType.APPLICATION_JSON).content(jsonMapper.writeValueAsString(ipn)));
+    }
+
+    private List<String> ledgerLines(long transId) {
+        return jdbc.queryForList("""
+                select l.account_code || ' ' || l.direction || ' ' || l.amount
+                from journal_lines l join journal_entries e on e.id = l.entry_id
+                where e.source_type = 'MOMO_PAYMENT' and e.source_id = ?
+                order by l.direction desc, l.account_code
+                """, String.class, "trans:" + transId);
     }
 
     private List<PaymentEventOutcome> outcomes(Pending p) {
