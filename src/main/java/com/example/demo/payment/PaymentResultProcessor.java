@@ -2,6 +2,7 @@ package com.example.demo.payment;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -9,6 +10,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.example.demo.entity.Order;
+import com.example.demo.ledger.LedgerAccounts;
+import com.example.demo.ledger.LedgerService;
+import com.example.demo.ledger.LedgerService.Line;
 import com.example.demo.payment.momo.MomoResultCodes;
 
 import lombok.RequiredArgsConstructor;
@@ -24,9 +28,12 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class PaymentResultProcessor {
 
+    public static final String LEDGER_SOURCE = "MOMO_PAYMENT";
+
     private final PaymentAttemptRepository attemptRepository;
     private final PaymentRepository paymentRepository;
     private final PaymentEventRepository eventRepository;
+    private final LedgerService ledgerService;
     private final Clock clock;
 
     @Transactional
@@ -66,15 +73,22 @@ public class PaymentResultProcessor {
                     return record(result, payment, PaymentEventOutcome.DUPLICATE_IGNORED);
                 }
                 log.error("Second MoMo payment {} for already-paid payment {}", result.transId(), payment.getId());
+                postRefundPayable(result, payment, "paid twice");
                 return record(result, payment, PaymentEventOutcome.DUPLICATE_PAYMENT);
             }
             case EXPIRED, CANCELLED -> {
                 log.error("MoMo payment {} arrived after payment {} was {}", result.transId(), payment.getId(),
                         payment.getStatus());
+                postRefundPayable(result, payment, "paid after " + payment.getStatus().name().toLowerCase());
                 return record(result, payment, PaymentEventOutcome.PAID_AFTER_CLOSE);
             }
             default -> {
                 markPaid(payment, result.transId());
+                long amount = result.amount();
+                ledgerService.post(LEDGER_SOURCE, ledgerSourceId(result), "MoMo payment for order #"
+                        + payment.getOrder().getId(), List.of(
+                                Line.debit(LedgerAccounts.MOMO_RECEIVABLE, amount),
+                                Line.credit(LedgerAccounts.SALES_REVENUE, amount)));
                 return record(result, payment, PaymentEventOutcome.PAID);
             }
         }
@@ -89,6 +103,20 @@ public class PaymentResultProcessor {
             return record(result, payment, PaymentEventOutcome.IGNORED_FINAL);
         }
         return record(result, payment, PaymentEventOutcome.ATTEMPT_FAILED);
+    }
+
+    /** Money really arrived but the sale is not valid: owe it back to the customer until refunded. */
+    private void postRefundPayable(PaymentResult result, Payment payment, String reason) {
+        long amount = result.amount();
+        ledgerService.post(LEDGER_SOURCE, ledgerSourceId(result), "MoMo payment to refund for order #"
+                + payment.getOrder().getId() + " (" + reason + ")", List.of(
+                        Line.debit(LedgerAccounts.MOMO_RECEIVABLE, amount),
+                        Line.credit(LedgerAccounts.REFUND_PAYABLE, amount)));
+    }
+
+    /** One ledger entry per MoMo transaction: transId is unique on MoMo's side. */
+    private static String ledgerSourceId(PaymentResult result) {
+        return result.transId() != null ? "trans:" + result.transId() : "order:" + result.providerOrderId();
     }
 
     private void markPaid(Payment payment, Long transId) {
