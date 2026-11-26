@@ -1,6 +1,6 @@
 # VESTRA — Đặc tả thanh toán MoMo + sổ cái kép + đối soát + outbox/Kafka
 
-Phiên bản 0.1 · 26/11/2026 · Trạng thái: **chờ duyệt**
+Phiên bản 1.0 · 26/11/2026 · Trạng thái: **đã duyệt và triển khai** (xem phần 8 cho những điểm khác bản 0.1)
 
 ## 1. Mục tiêu
 Khách hàng VESTRA có thể trả tiền đơn hàng bằng ví MoMo (môi trường sandbox). Hệ thống ghi nhận kết quả an toàn
@@ -114,3 +114,15 @@ Khách hàng VESTRA có thể trả tiền đơn hàng bằng ví MoMo (môi tr�
 | 8 | cả hai | Hướng dẫn deploy, biến môi trường Railway, checklist kiểm thử tay |
 
 Agent không merge PR; chủ repo review và merge theo thứ tự.
+
+## 8. Khác biệt so với bản 0.1 (phát hiện khi làm)
+- Tham số redirect là `order`, không phải `orderId`: MoMo tự nối `orderId` của nó vào redirectUrl.
+- API trả `expiresAt`/`paidAt` kèm múi giờ: Railway chạy UTC, khách ở UTC+7.
+- Request tới MoMo được buffer để có `Content-Length` (JDK client mặc định gửi chunked).
+- Tiền về cho đơn đã hủy/hết hạn hoặc trả lần hai: hạch toán **Nợ 1130 / Có 3388** (phải trả lại khách), không
+  phải doanh thu, và sinh mục đối soát.
+- Thêm API admin cho đối soát (chạy tay, xem, đánh dấu đã xử lý); chưa có UI.
+- Thêm sự kiện `PaymentExpired` vào outbox.
+- CORS lấy từ `CORS_ALLOWED_ORIGINS`.
+- Hai lỗi có sẵn được sửa ở branch riêng: `@PreAuthorize` của admin không có hiệu lực (thiếu `@EnableMethodSecurity`), và
+  `GET /api/cart` lỗi `LazyInitializationException` (bị che thành 403).

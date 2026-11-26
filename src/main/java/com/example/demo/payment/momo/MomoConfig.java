@@ -7,6 +7,7 @@ import java.time.Duration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.client.BufferingClientHttpRequestFactory;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 
@@ -27,7 +28,10 @@ public class MomoConfig {
         JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(httpClient);
         // MoMo docs: "Minimum timeout when call this API must be 30s".
         requestFactory.setReadTimeout(Duration.ofSeconds(35));
-        return new MomoClient(RestClient.builder().requestFactory(requestFactory), properties, signer);
+        // Buffer the body so requests carry Content-Length: the JDK client otherwise streams them chunked, which a
+        // payment gateway (or a proxy in front of it) may reject.
+        return new MomoClient(RestClient.builder().requestFactory(new BufferingClientHttpRequestFactory(requestFactory)),
+                properties, signer);
     }
 
     @Bean
